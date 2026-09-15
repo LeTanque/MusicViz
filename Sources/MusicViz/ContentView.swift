@@ -13,7 +13,7 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            ProjectMVisualizer(audioBus: model.audioBus, controller: projectMController)
+            ProjectMVisualizer(audioBus: model.audioBus, analyzer: model.analyzer, controller: projectMController)
                 .ignoresSafeArea()
 
             if !isFullscreen {

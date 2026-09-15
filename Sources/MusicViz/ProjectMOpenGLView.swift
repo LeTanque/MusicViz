@@ -6,6 +6,7 @@ import SwiftUI
 final class ProjectMOpenGLView: NSOpenGLView {
     private let renderInterval: TimeInterval = 1.0 / 30.0
     private let audioBus: AudioBus
+    private let analyzer: AudioAnalyzer
     private let controller: ProjectMController
     private var projectM: projectm_handle?
     private var displayTimer: Timer?
@@ -15,9 +16,11 @@ final class ProjectMOpenGLView: NSOpenGLView {
     private var thumbnailQueue: [URL] = []
     private var thumbnailCursor = 0
     private var thumbnailReturnIndex = 0
+    private var lastTrackChangeID = 0
 
-    init?(audioBus: AudioBus, controller: ProjectMController) {
+    init?(audioBus: AudioBus, analyzer: AudioAnalyzer, controller: ProjectMController) {
         self.audioBus = audioBus
+        self.analyzer = analyzer
         self.controller = controller
         let attributes: [NSOpenGLPixelFormatAttribute] = [
             UInt32(NSOpenGLPFAOpenGLProfile), UInt32(NSOpenGLProfileVersion4_1Core),
@@ -169,6 +172,11 @@ final class ProjectMOpenGLView: NSOpenGLView {
             projectm_pcm_add_float(projectM, buffer.baseAddress, UInt32(buffer.count / 2), PROJECTM_STEREO)
         }
         projectm_opengl_render_frame(projectM)
+        let trackChangeID = analyzer.snapshot().trackChangeID
+        if trackChangeID != lastTrackChangeID {
+            lastTrackChangeID = trackChangeID
+            shufflePreset()
+        }
         context.flushBuffer()
     }
 
@@ -285,10 +293,11 @@ final class ProjectMController: ObservableObject {
 @MainActor
 struct ProjectMVisualizer: NSViewRepresentable {
     let audioBus: AudioBus
+    let analyzer: AudioAnalyzer
     let controller: ProjectMController
 
     func makeNSView(context: Context) -> ProjectMOpenGLView {
-        let view = ProjectMOpenGLView(audioBus: audioBus, controller: controller)!
+        let view = ProjectMOpenGLView(audioBus: audioBus, analyzer: analyzer, controller: controller)!
         controller.renderer = view
         return view
     }

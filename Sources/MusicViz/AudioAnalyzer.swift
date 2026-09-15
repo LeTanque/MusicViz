@@ -6,6 +6,7 @@ struct AudioFrame: Sendable {
     var waveform: [Float] = Array(repeating: 0, count: 160)
     var level: Float = 0
     var beat: Float = 0
+    var trackChangeID = 0
 }
 
 final class AudioAnalyzer: @unchecked Sendable {
@@ -13,6 +14,9 @@ final class AudioAnalyzer: @unchecked Sendable {
     private var frame = AudioFrame()
     private var smoothedBands = Array(repeating: Float(0), count: 48)
     private var averageLevel: Float = 0.001
+    private var silenceStartedAt: Date?
+    private var detectedSilence = false
+    private var trackChangeID = 0
 
     func ingest(_ samples: UnsafePointer<Float>, count: Int) {
         guard count >= 256 else { return }
@@ -65,6 +69,19 @@ final class AudioAnalyzer: @unchecked Sendable {
         next.level = min(1, rms * 5)
         averageLevel = averageLevel * 0.94 + next.level * 0.06
         next.beat = max(0, min(1, (next.level - averageLevel * 1.25) * 4))
+
+        let now = Date()
+        if next.level < 0.012 {
+            if silenceStartedAt == nil { silenceStartedAt = now }
+            if let silenceStartedAt, now.timeIntervalSince(silenceStartedAt) >= 0.8 {
+                detectedSilence = true
+            }
+        } else {
+            if detectedSilence { trackChangeID += 1 }
+            silenceStartedAt = nil
+            detectedSilence = false
+        }
+        next.trackChangeID = trackChangeID
 
         lock.lock()
         frame = next
