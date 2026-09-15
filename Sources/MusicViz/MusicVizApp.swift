@@ -25,27 +25,47 @@ struct MusicVizApp: App {
 @MainActor
 final class VisualizerModel: ObservableObject {
     @Published var isCapturing = false
+    @Published var isStarting = false
     @Published var status = "Ready to listen"
-    @Published var gain = UserDefaults.standard.double(forKey: "gain").nonZeroOr(1.0)
-    @Published var smoothing = UserDefaults.standard.double(forKey: "smoothing").nonZeroOr(0.72)
-    @Published var palette = Palette(rawValue: UserDefaults.standard.string(forKey: "palette") ?? "ion") ?? .ion
-
     let analyzer = AudioAnalyzer()
+    let audioBus = AudioBus()
+    let projectMController = ProjectMController()
     private var capture: SystemAudioCapture?
+    private let captureQueue = DispatchQueue(label: "com.frankmartinez.musicviz.capture", qos: .userInitiated)
 
     func toggleCapture() {
         isCapturing ? stopCapture() : startCapture()
     }
 
     func startCapture() {
-        do {
-            let capture = SystemAudioCapture(analyzer: analyzer)
-            try capture.start()
-            self.capture = capture
-            isCapturing = true
-            status = "Listening to system audio"
-        } catch {
-            status = error.localizedDescription
+        guard !isStarting else { return }
+        isStarting = true
+        status = "Connecting to system audio…"
+        let analyzer = analyzer
+        let audioBus = audioBus
+
+        // Core Audio can wait on audio-server IPC while attaching an IO proc.
+        // Keep that work off the AppKit event loop so the window remains usable.
+        captureQueue.async { [weak self] in
+            do {
+                let capture = SystemAudioCapture(analyzer: analyzer, audioBus: audioBus)
+                try capture.start()
+                DispatchQueue.main.async {
+                    guard let self else {
+                        capture.stop()
+                        return
+                    }
+                    self.capture = capture
+                    self.isStarting = false
+                    self.isCapturing = true
+                    self.status = "Listening to system audio"
+                }
+            } catch {
+                DispatchQueue.main.async { [weak self] in
+                    self?.isStarting = false
+                    self?.status = error.localizedDescription
+                }
+            }
         }
     }
 
@@ -56,13 +76,4 @@ final class VisualizerModel: ObservableObject {
         status = "Capture stopped"
     }
 
-    func saveSettings() {
-        UserDefaults.standard.set(gain, forKey: "gain")
-        UserDefaults.standard.set(smoothing, forKey: "smoothing")
-        UserDefaults.standard.set(palette.rawValue, forKey: "palette")
-    }
-}
-
-private extension Double {
-    func nonZeroOr(_ fallback: Double) -> Double { self == 0 ? fallback : self }
 }

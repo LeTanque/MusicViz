@@ -18,12 +18,14 @@ enum SystemAudioCaptureError: LocalizedError {
 /// Captures the system mix through a private Core Audio tap. Audio is only sampled in memory.
 final class SystemAudioCapture {
     private let analyzer: AudioAnalyzer
+    private let audioBus: AudioBus
     private var tapID = AudioObjectID(kAudioObjectUnknown)
     private var deviceID = AudioObjectID(kAudioObjectUnknown)
     private var ioProcID: AudioDeviceIOProcID?
 
-    init(analyzer: AudioAnalyzer) {
+    init(analyzer: AudioAnalyzer, audioBus: AudioBus) {
         self.analyzer = analyzer
+        self.audioBus = audioBus
     }
 
     func start() throws {
@@ -62,6 +64,7 @@ final class SystemAudioCapture {
                     guard let data = buffer.mData else { continue }
                     let samples = data.assumingMemoryBound(to: Float.self)
                     self.analyzer.ingest(samples, count: Int(buffer.mDataByteSize) / MemoryLayout<Float>.size)
+                    self.audioBus.ingest(samples, count: Int(buffer.mDataByteSize) / MemoryLayout<Float>.size)
                     break
                 }
             }

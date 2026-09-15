@@ -1,0 +1,9 @@
+[submodule "Vendor/projectm"]
+	path = Vendor/projectm
+	url = https://github.com/projectM-visualizer/projectm.git
+[submodule "Vendor/presets-milkdrop-original"]
+	path = Vendor/presets-milkdrop-original
+	url = https://github.com/projectM-visualizer/presets-milkdrop-original.git
+[submodule "Vendor/presets-milkdrop-textures"]
+	path = Vendor/presets-milkdrop-textures
+	url = https://github.com/projectM-visualizer/presets-milkdrop-texture-pack.git

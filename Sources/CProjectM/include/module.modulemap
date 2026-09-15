@@ -1,0 +1,4 @@
+module CProjectM [system] {
+    umbrella "projectM-4"
+    export *
+}

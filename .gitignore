@@ -1,5 +1,8 @@
 .build/
 build/
+.projectm-build/
+.projectm-install/
+Sources/CProjectM/include/projectM-4/
 .DS_Store
 *.xcuserstate
 xcuserdata/
