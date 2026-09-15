@@ -69,6 +69,7 @@ final class ProjectMOpenGLView: NSOpenGLView {
             includingPropertiesForKeys: nil,
             options: [.skipsHiddenFiles]
         ).filter { $0.pathExtension.lowercased() == "milk" }.sorted { $0.lastPathComponent < $1.lastPathComponent }) ?? []
+        controller.setPresets(presetURLs.map(PresetDescriptor.init))
 
         textureDirectory.path.withCString { texturePath in
             var paths: [UnsafePointer<CChar>?] = [texturePath]
@@ -91,10 +92,24 @@ final class ProjectMOpenGLView: NSOpenGLView {
         loadPreset(at: presetIndex, smooth: true)
     }
 
+    func selectPreset(id: String) {
+        guard let index = presetURLs.firstIndex(where: { $0.path == id }) else { return }
+        presetIndex = index
+        loadPreset(at: index, smooth: true)
+    }
+
+    func shufflePreset() {
+        guard presetURLs.count > 1 else { return }
+        var next = presetIndex
+        while next == presetIndex { next = Int.random(in: presetURLs.indices) }
+        presetIndex = next
+        loadPreset(at: next, smooth: true)
+    }
+
     private func loadPreset(at index: Int, smooth: Bool) {
         guard let projectM, presetURLs.indices.contains(index) else { return }
         presetURLs[index].path.withCString { projectm_load_preset_file(projectM, $0, smooth) }
-        controller.setPreset(name: presetURLs[index].deletingPathExtension().lastPathComponent, position: index + 1, total: presetURLs.count)
+        controller.setPreset(id: presetURLs[index].path, name: presetURLs[index].deletingPathExtension().lastPathComponent, position: index + 1, total: presetURLs.count)
     }
 
     private func drawFrame() {
@@ -135,17 +150,57 @@ final class ProjectMOpenGLView: NSOpenGLView {
     }
 }
 
+struct PresetDescriptor: Identifiable, Hashable {
+    let id: String
+    let name: String
+    let red: Double
+    let green: Double
+    let blue: Double
+
+    init(url: URL) {
+        id = url.path
+        name = url.deletingPathExtension().lastPathComponent
+        let source = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        red = Self.value("wave_r", in: source, fallback: 0.18)
+        green = Self.value("wave_g", in: source, fallback: 0.52)
+        blue = Self.value("wave_b", in: source, fallback: 0.94)
+    }
+
+    private static func value(_ key: String, in source: String, fallback: Double) -> Double {
+        guard let line = source.split(whereSeparator: \.isNewline).first(where: { $0.hasPrefix("\(key)=") }),
+              let value = Double(line.dropFirst(key.count + 1)) else { return fallback }
+        return min(1, max(0, value))
+    }
+}
+
 @MainActor
 final class ProjectMController: ObservableObject {
     @Published private(set) var presetName = "Loading presets…"
     @Published private(set) var presetPosition = 0
     @Published private(set) var presetTotal = 0
+    @Published private(set) var presetID = ""
+    @Published private(set) var presets: [PresetDescriptor] = []
+    @Published private(set) var favorites: Set<String>
     weak var renderer: ProjectMOpenGLView?
+
+    init() {
+        favorites = Set(UserDefaults.standard.stringArray(forKey: "favoritePresetIDs") ?? [])
+    }
 
     func previousPreset() { renderer?.previousPreset() }
     func nextPreset() { renderer?.nextPreset() }
+    func shufflePreset() { renderer?.shufflePreset() }
+    func select(_ preset: PresetDescriptor) { renderer?.selectPreset(id: preset.id) }
 
-    func setPreset(name: String, position: Int, total: Int) {
+    func setPresets(_ presets: [PresetDescriptor]) { self.presets = presets }
+
+    func toggleFavorite(_ id: String) {
+        if favorites.contains(id) { favorites.remove(id) } else { favorites.insert(id) }
+        UserDefaults.standard.set(Array(favorites), forKey: "favoritePresetIDs")
+    }
+
+    func setPreset(id: String, name: String, position: Int, total: Int) {
+        presetID = id
         presetName = name
         presetPosition = position
         presetTotal = total

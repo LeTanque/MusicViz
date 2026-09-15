@@ -4,6 +4,7 @@ struct ContentView: View {
     @ObservedObject var model: VisualizerModel
     @ObservedObject private var projectMController: ProjectMController
     @State private var isFullscreen = false
+    @State private var isShowingLibrary = false
 
     init(model: VisualizerModel) {
         self.model = model
@@ -42,6 +43,9 @@ struct ContentView: View {
             }
         }
         .background(.black)
+        .sheet(isPresented: $isShowingLibrary) {
+            PresetGallery(controller: projectMController) { isShowingLibrary = false }
+        }
     }
 
     private var controls: some View {
@@ -57,6 +61,18 @@ struct ContentView: View {
             .disabled(model.isStarting)
 
             Divider().frame(height: 34)
+
+            Button {
+                isShowingLibrary = true
+            } label: {
+                Label("Browse", systemImage: "square.grid.2x2")
+            }
+            .buttonStyle(.bordered)
+
+            Button(action: projectMController.shufflePreset) {
+                Label("Shuffle", systemImage: "shuffle")
+            }
+            .buttonStyle(.bordered)
 
             Button(action: projectMController.previousPreset) {
                 Image(systemName: "backward.end.fill")
@@ -75,6 +91,14 @@ struct ContentView: View {
 
             Button(action: projectMController.nextPreset) {
                 Image(systemName: "forward.end.fill")
+            }
+            .buttonStyle(.bordered)
+
+            Button {
+                guard !projectMController.presetID.isEmpty else { return }
+                projectMController.toggleFavorite(projectMController.presetID)
+            } label: {
+                Image(systemName: projectMController.favorites.contains(projectMController.presetID) ? "star.fill" : "star")
             }
             .buttonStyle(.bordered)
 
