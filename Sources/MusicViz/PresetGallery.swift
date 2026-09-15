@@ -10,6 +10,11 @@ struct PresetGallery: View {
         controller.presets.filter { preset in
             (!favoritesOnly || controller.favorites.contains(preset.id)) &&
             (query.isEmpty || preset.name.localizedCaseInsensitiveContains(query))
+        }.sorted { left, right in
+            let leftFavorite = controller.favorites.contains(left.id)
+            let rightFavorite = controller.favorites.contains(right.id)
+            if leftFavorite != rightFavorite { return leftFavorite }
+            return left.name.localizedCaseInsensitiveCompare(right.name) == .orderedAscending
         }
     }
 
