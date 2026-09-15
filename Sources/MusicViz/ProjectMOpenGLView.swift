@@ -12,6 +12,9 @@ final class ProjectMOpenGLView: NSOpenGLView {
     private var presetURLs: [URL] = []
     private var presetIndex = 0
     private var lastRender = Date()
+    private var thumbnailQueue: [URL] = []
+    private var thumbnailCursor = 0
+    private var thumbnailReturnIndex = 0
 
     init?(audioBus: AudioBus, controller: ProjectMController) {
         self.audioBus = audioBus
@@ -70,6 +73,7 @@ final class ProjectMOpenGLView: NSOpenGLView {
             options: [.skipsHiddenFiles]
         ).filter { $0.pathExtension.lowercased() == "milk" }.sorted { $0.lastPathComponent < $1.lastPathComponent }) ?? []
         controller.setPresets(presetURLs.map(PresetDescriptor.init))
+        controller.configureThumbnailRendering(textureDirectory: textureDirectory.path)
 
         textureDirectory.path.withCString { texturePath in
             var paths: [UnsafePointer<CChar>?] = [texturePath]
@@ -104,6 +108,42 @@ final class ProjectMOpenGLView: NSOpenGLView {
         while next == presetIndex { next = Int.random(in: presetURLs.indices) }
         presetIndex = next
         loadPreset(at: next, smooth: true)
+    }
+
+    func generateThumbnails() {
+        guard thumbnailQueue.isEmpty else { return }
+        thumbnailQueue = presetURLs.filter { !FileManager.default.fileExists(atPath: controller.thumbnailURL(for: $0.path).path) }
+        guard !thumbnailQueue.isEmpty else { return }
+        thumbnailCursor = 0
+        thumbnailReturnIndex = presetIndex
+        controller.setThumbnailGeneration(active: true, progress: presetURLs.count - thumbnailQueue.count)
+        renderNextThumbnail()
+    }
+
+    private func renderNextThumbnail() {
+        guard thumbnailCursor < thumbnailQueue.count, let projectM, let context = openGLContext else {
+            if !thumbnailQueue.isEmpty { loadPreset(at: thumbnailReturnIndex, smooth: true) }
+            thumbnailQueue = []
+            controller.setThumbnailGeneration(active: false, progress: presetURLs.count)
+            return
+        }
+        let preset = thumbnailQueue[thumbnailCursor]
+        context.makeCurrentContext()
+        preset.path.withCString { projectm_load_preset_file(projectM, $0, false) }
+        projectm_set_window_size(projectM, 320, 180)
+        projectm_opengl_render_frame(projectM)
+
+        let output = controller.thumbnailURL(for: preset.path)
+        var pixels = [UInt8](repeating: 0, count: 320 * 180 * 4)
+        pixels.withUnsafeMutableBufferPointer { projectm_read_pixels($0.baseAddress, 320, 180) }
+        if let image = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 320, pixelsHigh: 180, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 320 * 4, bitsPerPixel: 32), let data = image.bitmapData {
+            pixels.withUnsafeBufferPointer { data.update(from: $0.baseAddress!, count: pixels.count) }
+            try? image.representation(using: .png, properties: [:])?.write(to: output)
+            controller.storeThumbnail(id: preset.path, url: output)
+        }
+        thumbnailCursor += 1
+        controller.setThumbnailGeneration(active: true, progress: presetURLs.count - thumbnailQueue.count + thumbnailCursor)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [weak self] in self?.renderNextThumbnail() }
     }
 
     private func loadPreset(at index: Int, smooth: Bool) {
@@ -150,7 +190,7 @@ final class ProjectMOpenGLView: NSOpenGLView {
     }
 }
 
-struct PresetDescriptor: Identifiable, Hashable {
+struct PresetDescriptor: Identifiable, Hashable, Sendable {
     let id: String
     let name: String
     let red: Double
@@ -181,7 +221,11 @@ final class ProjectMController: ObservableObject {
     @Published private(set) var presetID = ""
     @Published private(set) var presets: [PresetDescriptor] = []
     @Published private(set) var favorites: Set<String>
+    @Published private(set) var thumbnailURLs: [String: URL] = [:]
+    @Published private(set) var thumbnailProgress = 0
+    @Published private(set) var isGeneratingThumbnails = false
     weak var renderer: ProjectMOpenGLView?
+    private var textureDirectory = ""
 
     init() {
         favorites = Set(UserDefaults.standard.stringArray(forKey: "favoritePresetIDs") ?? [])
@@ -193,6 +237,37 @@ final class ProjectMController: ObservableObject {
     func select(_ preset: PresetDescriptor) { renderer?.selectPreset(id: preset.id) }
 
     func setPresets(_ presets: [PresetDescriptor]) { self.presets = presets }
+
+    func configureThumbnailRendering(textureDirectory: String) {
+        self.textureDirectory = textureDirectory
+        for preset in presets {
+            let url = thumbnailURL(for: preset.id)
+            if FileManager.default.fileExists(atPath: url.path) { thumbnailURLs[preset.id] = url }
+        }
+    }
+
+    func generateThumbnails() {
+        guard !isGeneratingThumbnails, !textureDirectory.isEmpty else { return }
+        isGeneratingThumbnails = true
+        let remaining = presets.filter { thumbnailURLs[$0.id] == nil }
+        thumbnailProgress = presets.count - remaining.count
+        renderer?.generateThumbnails()
+    }
+
+    func storeThumbnail(id: String, url: URL) { thumbnailURLs[id] = url }
+    func setThumbnailGeneration(active: Bool, progress: Int) {
+        isGeneratingThumbnails = active
+        thumbnailProgress = progress
+    }
+
+    func thumbnailURL(for id: String) -> URL {
+        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("MusicViz/Thumbnails", isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        var hash: UInt64 = 1_469_598_103_934_665_603
+        for byte in id.utf8 { hash = (hash ^ UInt64(byte)) &* 1_099_511_628_211 }
+        return directory.appendingPathComponent(String(hash, radix: 16)).appendingPathExtension("png")
+    }
 
     func toggleFavorite(_ id: String) {
         if favorites.contains(id) { favorites.remove(id) } else { favorites.insert(id) }

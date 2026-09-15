@@ -1,4 +1,5 @@
 module CProjectM [system] {
     umbrella "projectM-4"
+    header "projectm_shim.h"
     export *
 }

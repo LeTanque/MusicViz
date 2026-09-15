@@ -29,13 +29,17 @@ struct PresetGallery: View {
                     .textFieldStyle(.roundedBorder)
                 Toggle("Favorites", isOn: $favoritesOnly)
                     .toggleStyle(.button)
+                Button(controller.isGeneratingThumbnails ? "Generating \(controller.thumbnailProgress)/\(controller.presets.count)" : "Generate previews") {
+                    controller.generateThumbnails()
+                }
+                .disabled(controller.isGeneratingThumbnails)
             }
 
             ScrollView {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 165), spacing: 12)], spacing: 12) {
                     ForEach(visiblePresets) { preset in
                         VStack(alignment: .leading, spacing: 7) {
-                                PresetThumbnail(preset: preset)
+                                PresetThumbnail(preset: preset, imageURL: controller.thumbnailURLs[preset.id])
                                     .frame(height: 90)
                                 HStack(alignment: .top, spacing: 4) {
                                     Text(preset.name)
@@ -69,8 +73,15 @@ struct PresetGallery: View {
 
 private struct PresetThumbnail: View {
     let preset: PresetDescriptor
+    let imageURL: URL?
 
     var body: some View {
+        if let imageURL, let image = NSImage(contentsOf: imageURL) {
+            Image(nsImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .clipShape(RoundedRectangle(cornerRadius: 7))
+        } else {
         let color = Color(red: preset.red, green: preset.green, blue: preset.blue)
         Canvas { context, size in
             let rect = CGRect(origin: .zero, size: size)
@@ -86,5 +97,6 @@ private struct PresetThumbnail: View {
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 7))
+        }
     }
 }
