@@ -30,8 +30,17 @@ final class VisualizerModel: ObservableObject {
     let analyzer = AudioAnalyzer()
     let audioBus = AudioBus()
     let projectMController = ProjectMController()
+    private let spotifyMonitor = SpotifyTrackMonitor()
     private var capture: SystemAudioCapture?
     private let captureQueue = DispatchQueue(label: "com.frankmartinez.musicviz.capture", qos: .userInitiated)
+
+    init() {
+        spotifyMonitor.onTrackChanged = { [weak self] in
+            self?.projectMController.shufflePreset()
+            self?.status = "Spotify track changed · shuffled"
+        }
+        spotifyMonitor.start()
+    }
 
     func toggleCapture() {
         isCapturing ? stopCapture() : startCapture()

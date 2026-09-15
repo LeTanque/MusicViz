@@ -18,8 +18,10 @@
     <string>1</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.2</string>
-    <key>NSAudioCaptureUsageDescription</key>
-    <string>MusicViz uses currently playing system audio only to animate visualizations. It never records or saves your audio.</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>MusicViz uses currently playing system audio only to animate visualizations. It never records or saves your audio.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>MusicViz reads the current Spotify track so it can switch visualizations when the song changes.</string>
     <key>NSHighResolutionCapable</key>
     <true/>
 </dict>
