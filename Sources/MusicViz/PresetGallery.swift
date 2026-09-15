@@ -56,7 +56,8 @@ struct PresetGallery: View {
                                 }
                         }
                         .padding(8)
-                        .background(.quaternary, in: RoundedRectangle(cornerRadius: 10))
+                        .background(.black, in: RoundedRectangle(cornerRadius: 10))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(.white.opacity(0.12)))
                         .contentShape(RoundedRectangle(cornerRadius: 10))
                         .onTapGesture {
                             controller.select(preset)
