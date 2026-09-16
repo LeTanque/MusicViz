@@ -4,7 +4,6 @@ struct ContentView: View {
     @ObservedObject var model: VisualizerModel
     @ObservedObject private var projectMController: ProjectMController
     @State private var isFullscreen = false
-    @State private var isShowingLibrary = false
 
     init(model: VisualizerModel) {
         self.model = model
@@ -43,8 +42,8 @@ struct ContentView: View {
             }
         }
         .background(.black)
-        .sheet(isPresented: $isShowingLibrary) {
-            PresetGallery(controller: projectMController) { isShowingLibrary = false }
+        .sheet(isPresented: $model.isShowingLibrary) {
+            PresetGallery(controller: projectMController) { model.isShowingLibrary = false }
         }
     }
 
@@ -63,7 +62,7 @@ struct ContentView: View {
             Divider().frame(height: 34)
 
             Button {
-                isShowingLibrary = true
+                model.isShowingLibrary = true
             } label: {
                 Label("Browse", systemImage: "square.grid.2x2")
             }
@@ -96,9 +95,17 @@ struct ContentView: View {
 
             Button {
                 guard !projectMController.presetID.isEmpty else { return }
-                projectMController.toggleFavorite(projectMController.presetID)
+                projectMController.like(projectMController.presetID)
             } label: {
-                Image(systemName: projectMController.favorites.contains(projectMController.presetID) ? "star.fill" : "star")
+                Image(systemName: projectMController.likes.contains(projectMController.presetID) ? "hand.thumbsup.fill" : "hand.thumbsup")
+            }
+            .buttonStyle(.bordered)
+
+            Button {
+                guard !projectMController.presetID.isEmpty else { return }
+                projectMController.dislike(projectMController.presetID)
+            } label: {
+                Image(systemName: projectMController.dislikes.contains(projectMController.presetID) ? "hand.thumbsdown.fill" : "hand.thumbsdown")
             }
             .buttonStyle(.bordered)
 

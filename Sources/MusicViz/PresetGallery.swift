@@ -4,16 +4,17 @@ struct PresetGallery: View {
     @ObservedObject var controller: ProjectMController
     let dismiss: () -> Void
     @State private var query = ""
-    @State private var favoritesOnly = false
+    @State private var likesOnly = false
 
     private var visiblePresets: [PresetDescriptor] {
         controller.presets.filter { preset in
-            (!favoritesOnly || controller.favorites.contains(preset.id)) &&
+            (!likesOnly || controller.likes.contains(preset.id)) &&
             (query.isEmpty || preset.name.localizedCaseInsensitiveContains(query))
         }.sorted { left, right in
-            let leftFavorite = controller.favorites.contains(left.id)
-            let rightFavorite = controller.favorites.contains(right.id)
-            if leftFavorite != rightFavorite { return leftFavorite }
+            let score: (PresetDescriptor) -> Int = { preset in
+                controller.likes.contains(preset.id) ? 0 : (controller.dislikes.contains(preset.id) ? 2 : 1)
+            }
+            if score(left) != score(right) { return score(left) < score(right) }
             return left.name.localizedCaseInsensitiveCompare(right.name) == .orderedAscending
         }
     }
@@ -32,7 +33,7 @@ struct PresetGallery: View {
             HStack {
                 TextField("Search presets", text: $query)
                     .textFieldStyle(.roundedBorder)
-                Toggle("Favorites", isOn: $favoritesOnly)
+                Toggle("Liked", isOn: $likesOnly)
                     .toggleStyle(.button)
                 Button(controller.isGeneratingThumbnails ? "Generating \(controller.thumbnailProgress)/\(controller.presets.count)" : "Generate previews") {
                     controller.generateThumbnails()
@@ -52,10 +53,17 @@ struct PresetGallery: View {
                                         .lineLimit(2)
                                     Spacer(minLength: 0)
                                     Button {
-                                        controller.toggleFavorite(preset.id)
+                                        controller.like(preset.id)
                                     } label: {
-                                        Image(systemName: controller.favorites.contains(preset.id) ? "star.fill" : "star")
-                                            .foregroundStyle(controller.favorites.contains(preset.id) ? .yellow : .secondary)
+                                        Image(systemName: controller.likes.contains(preset.id) ? "hand.thumbsup.fill" : "hand.thumbsup")
+                                            .foregroundStyle(controller.likes.contains(preset.id) ? .green : .secondary)
+                                    }
+                                    .buttonStyle(.plain)
+                                    Button {
+                                        controller.dislike(preset.id)
+                                    } label: {
+                                        Image(systemName: controller.dislikes.contains(preset.id) ? "hand.thumbsdown.fill" : "hand.thumbsdown")
+                                            .foregroundStyle(controller.dislikes.contains(preset.id) ? .red : .secondary)
                                     }
                                     .buttonStyle(.plain)
                                 }

@@ -106,9 +106,10 @@ final class ProjectMOpenGLView: NSOpenGLView {
     }
 
     func shufflePreset() {
-        guard presetURLs.count > 1 else { return }
-        var next = presetIndex
-        while next == presetIndex { next = Int.random(in: presetURLs.indices) }
+        let eligible = presetURLs.indices.filter { !controller.dislikes.contains(presetURLs[$0].path) }
+        guard !eligible.isEmpty else { return }
+        let alternatives = eligible.filter { $0 != presetIndex }
+        let next = (alternatives.isEmpty ? eligible : alternatives).randomElement()!
         presetIndex = next
         loadPreset(at: next, smooth: true)
     }
@@ -228,7 +229,8 @@ final class ProjectMController: ObservableObject {
     @Published private(set) var presetTotal = 0
     @Published private(set) var presetID = ""
     @Published private(set) var presets: [PresetDescriptor] = []
-    @Published private(set) var favorites: Set<String>
+    @Published private(set) var likes: Set<String>
+    @Published private(set) var dislikes: Set<String>
     @Published private(set) var thumbnailURLs: [String: URL] = [:]
     @Published private(set) var thumbnailProgress = 0
     @Published private(set) var isGeneratingThumbnails = false
@@ -236,7 +238,8 @@ final class ProjectMController: ObservableObject {
     private var textureDirectory = ""
 
     init() {
-        favorites = Set(UserDefaults.standard.stringArray(forKey: "favoritePresetIDs") ?? [])
+        likes = Set(UserDefaults.standard.stringArray(forKey: "likedPresetIDs") ?? UserDefaults.standard.stringArray(forKey: "favoritePresetIDs") ?? [])
+        dislikes = Set(UserDefaults.standard.stringArray(forKey: "dislikedPresetIDs") ?? [])
     }
 
     func previousPreset() { renderer?.previousPreset() }
@@ -277,9 +280,24 @@ final class ProjectMController: ObservableObject {
         return directory.appendingPathComponent(String(hash, radix: 16)).appendingPathExtension("png")
     }
 
-    func toggleFavorite(_ id: String) {
-        if favorites.contains(id) { favorites.remove(id) } else { favorites.insert(id) }
-        UserDefaults.standard.set(Array(favorites), forKey: "favoritePresetIDs")
+    func like(_ id: String) {
+        guard !id.isEmpty else { return }
+        dislikes.remove(id)
+        likes.insert(id)
+        persistRatings()
+    }
+
+    func dislike(_ id: String) {
+        guard !id.isEmpty else { return }
+        likes.remove(id)
+        dislikes.insert(id)
+        persistRatings()
+        if id == presetID { renderer?.shufflePreset() }
+    }
+
+    private func persistRatings() {
+        UserDefaults.standard.set(Array(likes), forKey: "likedPresetIDs")
+        UserDefaults.standard.set(Array(dislikes), forKey: "dislikedPresetIDs")
     }
 
     func setPreset(id: String, name: String, position: Int, total: Int) {

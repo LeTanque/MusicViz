@@ -19,6 +19,10 @@ struct MusicVizApp: App {
                 .keyboardShortcut(" ", modifiers: [])
             }
         }
+        MenuBarExtra("MusicViz", systemImage: "waveform") {
+            MusicVizMenu(model: model)
+        }
+        .menuBarExtraStyle(.menu)
     }
 }
 
@@ -26,6 +30,7 @@ struct MusicVizApp: App {
 final class VisualizerModel: ObservableObject {
     @Published var isCapturing = false
     @Published var isStarting = false
+    @Published var isShowingLibrary = false
     @Published var status = "Ready to listen"
     let analyzer = AudioAnalyzer()
     let audioBus = AudioBus()
@@ -83,6 +88,16 @@ final class VisualizerModel: ObservableObject {
         capture = nil
         isCapturing = false
         status = "Capture stopped"
+    }
+
+    func showWindow() {
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.windows.first(where: { $0.title == "MusicViz" })?.makeKeyAndOrderFront(nil)
+    }
+
+    func showLibrary() {
+        showWindow()
+        isShowingLibrary = true
     }
 
 }
